@@ -7,229 +7,82 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#d7c49e">
 <style>
-  :root{
-    --bg:#f6f0e3;
-    --paper:#efe2c4;
-    --ink:#2b1708;
-    --accent:#8b5a2b;
-  }
-  *{box-sizing:border-box}
-  body{margin:0; font-family: ui-sans-serif, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial;
-       background: var(--bg); color:#222; }
-  header{padding:16px 20px; position:sticky; top:0; backdrop-filter:saturate(180%) blur(6px); background:rgba(246,240,227,.85); border-bottom:1px solid #decfae;}
-  .container{max-width:1100px; margin:0 auto; padding:18px;}
-  .grid{display:grid; grid-template-columns: 1fr 1fr; gap:24px;}
-  @media (max-width: 900px){ .grid{grid-template-columns:1fr} }
-  .card{background:white; border:1px solid #e5dcc5; border-radius:16px; padding:18px; box-shadow: 0 6px 30px rgba(0,0,0,.05);}
-  h1{margin:0; font-size:22px;}
-  h2{margin-top:0}
-  button, .btn { background:#2f2f2f; color:white; border:none; padding:12px 16px; border-radius:12px; font-weight:600; cursor:pointer }
-  button.secondary{ background:#fff; color:#2f2f2f; border:1px solid #ccc }
-  button:disabled{opacity:.55; cursor:not-allowed}
-  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0}
-  label{font-weight:600}
-  input[type="text"]{padding:10px 12px; border-radius:10px; border:1px solid #c8bda3; width:100%; max-width:320px}
-  input[type="file"]{display:none}
-  .file-label{display:inline-flex; align-items:center; gap:8px; padding:12px 16px; border-radius:12px; border:1px dashed #bfa77e; color:#5b4632; background:#f7f1e3; cursor:pointer; font-weight:600}
-  .hint{font-size:.9rem; color:#5b4632}
-  .poster-wrap{display:flex; justify-content:center}
-  canvas{width:100%; max-width:480px; height:auto; border:3px solid #654321; border-radius:8px; background: #efe2c4;}
-  .video-wrap{display:none; margin-top:8px}
-  video{width:100%; max-width:480px; border-radius:12px; background:#000}
-  .tag{font-size:.8rem; background:#efe2c4; color:#5b4632; padding:4px 8px; border-radius:999px; border:1px solid #decfae}
-  footer{padding:20px; text-align:center; color:#6b5a46}
+  body{margin:0;font-family:sans-serif;background:#f6f0e3;color:#222;}
+  header{padding:16px;background:#f6f0e3;border-bottom:1px solid #decfae;}
+  .container{max-width:1000px;margin:auto;padding:16px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:900px){.grid{grid-template-columns:1fr;}}
+  .card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.1);}
+  canvas{width:100%;max-width:480px;border:3px solid #654321;border-radius:8px;background:#efe2c4;}
+  video{width:100%;max-width:480px;border-radius:8px;background:#000}
+  button,.btn{padding:10px 14px;border:none;border-radius:8px;background:#222;color:#fff;cursor:pointer;font-weight:600;}
+  button.secondary{background:#fff;color:#222;border:1px solid #aaa;}
+  input[type=text]{padding:8px 10px;border-radius:8px;border:1px solid #bbb;width:100%;max-width:300px;}
+  input[type=file]{display:none}
+  .file-label{display:inline-block;padding:10px 14px;border-radius:8px;border:1px dashed #a97c4a;background:#f7f1e3;cursor:pointer;}
+  .row{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0}
 </style>
 </head>
 <body>
-<header>
-  <div class="container row" style="justify-content:space-between">
-    <h1>Wanted Poster Booth</h1>
-    <div class="row">
-      <span class="tag" id="secureTag">Secure camera: checking…</span>
-      <button class="secondary" id="installBtn" style="display:none">Install App</button>
-    </div>
-  </div>
-</header>
-
+<header><div class="container"><h2>Wanted Poster Booth</h2></div></header>
 <div class="container grid">
-  <section class="card">
-    <h2>Create your poster</h2>
-    <div class="row">
-      <label for="name">Name on poster:</label>
-      <input id="name" type="text" placeholder="e.g., Sheriff Alex" maxlength="40">
-    </div>
-
-    <div class="row">
-      <label for="file" class="file-label">📷 Upload or Take Photo</label>
-      <input id="file" type="file" accept="image/*" capture="user">
-      <button id="cameraBtn">Use Live Camera</button>
-      <button id="snapBtn" class="secondary" disabled>Snap Photo</button>
-    </div>
-    <div class="video-wrap" id="videoWrap">
-      <video id="video" autoplay playsinline></video>
-    </div>
-
-    <div class="row">
-      <button id="makeBtn">Make Poster</button>
-      <a id="dl" class="btn" style="display:none" download="wanted-poster.png">Download Poster</a>
-    </div>
-    <p class="hint">Tip: On iPhone, live camera needs HTTPS. Use the included <b>secure server</b> in the setup script and open the LAN link.</p>
-  </section>
-
-  <section class="card poster-wrap">
-    <canvas id="c" width="768" height="1152" aria-label="Wanted poster preview"></canvas>
-  </section>
+<section class="card">
+<h3>Create your poster</h3>
+<div class="row"><label>Name:</label><input id="name" type="text" placeholder="e.g. Sheriff Alex"></div>
+<div class="row">
+  <label for="file" id="fileLabel" class="file-label">📷 Upload or Take Photo</label>
+  <input id="file" type="file" accept="image/*" capture="user">
+  <button id="cameraBtn">Use Live Camera</button>
+  <button id="snapBtn" class="secondary" disabled>Snap Photo</button>
+</div>
+<div id="videoWrap" style="display:none"><video id="video" autoplay playsinline></video></div>
+<div class="row">
+  <button id="makeBtn">Make Poster</button>
+  <a id="dl" class="btn" style="display:none" download="wanted-poster.png">Download Poster</a>
+</div>
+</section>
+<section class="card"><canvas id="c" width="768" height="1152"></canvas></section>
 </div>
 
-<footer>All processing happens in your browser. Nothing is uploaded.</footer>
-
 <script>
-let deferredPrompt;
-const installBtn = document.getElementById('installBtn');
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  installBtn.style.display = 'inline-block';
-});
-installBtn.addEventListener('click', async () => {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  await deferredPrompt.userChoice;
-  deferredPrompt = null;
-  installBtn.style.display = 'none';
-});
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js');
-}
+const cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+const tpl=new Image();tpl.src='poster_template.png';
+let userImg=null,stream=null,hasPhoto=false;
+const fileEl=document.getElementById('file'),fileLbl=document.getElementById('fileLabel');
+const cameraBtn=document.getElementById('cameraBtn'),snapBtn=document.getElementById('snapBtn');
+const video=document.getElementById('video'),videoWrap=document.getElementById('videoWrap');
+const makeBtn=document.getElementById('makeBtn'),dl=document.getElementById('dl'),nameEl=document.getElementById('name');
 
-const secureTag = document.getElementById('secureTag');
-secureTag.textContent = (window.isSecureContext ? 'Secure camera: enabled' : 'Secure camera: limited (use HTTPS link)');
+const crimes=["Stole all the 3 AM burritos","Refused to share fries","Serial high-fiver",
+"Guilty of excessive dad jokes","Pocketed the last donut","Liberating cake from a tiny box",
+"Hijacked the office stapler","Dance-floor instigator","Coffee-cup thief","Snuck extra napkins"];
+const rewards=["A bag of gold coins","A lifetime supply of tacos","A golden sheriff badge",
+"Free donuts for a week","A mug of strong coffee","A comfy cowboy hat","Two front-row rodeo seats"];
 
-const crimes = [
- "Stole all the 3 AM burritos",
- "Refused to share fries",
- "Serial high-fiver",
- "Guilty of excessive dad jokes",
- "Pocketed the last donut",
- "Liberating cake from a tiny box",
- "Hijacked the office stapler",
- "Dance-floor instigator",
- "Coffee-cup thief",
- "Snuck extra napkins"
-];
-const cvs = document.getElementById('c'), ctx = cvs.getContext('2d');
-const tpl = new Image(); tpl.src = 'poster_template.png';
-let userImg = null;
-let stream = null;
-
-const fileEl = document.getElementById('file');
-const cameraBtn = document.getElementById('cameraBtn');
-const snapBtn = document.getElementById('snapBtn');
-const video = document.getElementById('video');
-const videoWrap = document.getElementById('videoWrap');
-const makeBtn = document.getElementById('makeBtn');
-const dl = document.getElementById('dl');
-const nameEl = document.getElementById('name');
-
-tpl.onload = draw;
-
-fileEl.addEventListener('change', e => {
-  const f = e.target.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = ev => { userImg = new Image(); userImg.onload = draw; userImg.src = ev.target.result; };
-  r.readAsDataURL(f);
-});
-
-document.querySelector('.file-label').addEventListener('click', () => fileEl.click());
-
-cameraBtn.addEventListener('click', async () => {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    alert('Live camera not supported in this browser. Use Upload instead.');
-    return;
-  }
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio:false });
-    video.srcObject = stream;
-    videoWrap.style.display = 'block';
-    snapBtn.disabled = false;
-  } catch (e) {
-    alert('Could not access camera. Try the secure HTTPS link from the setup, or use Upload.');
-  }
-});
-snapBtn.addEventListener('click', () => {
-  if (!stream) return;
-  const tmp = document.createElement('canvas');
-  tmp.width = video.videoWidth; tmp.height = video.videoHeight;
-  tmp.getContext('2d').drawImage(video, 0, 0);
-  const img = new Image();
-  img.onload = () => { userImg = img; draw(); };
-  img.src = tmp.toDataURL('image/png');
-  stream.getTracks().forEach(t => t.stop());
-  stream = null;
-  videoWrap.style.display = 'none';
-  snapBtn.disabled = true;
-});
-
-makeBtn.addEventListener('click', () => {
-  if (!userImg) { alert('Upload or take a photo first!'); return; }
-  draw();
-});
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+function setPhotoChosen(on){hasPhoto=!!on;fileLbl.textContent=on?"📷 Change Photo":"📷 Upload or Take Photo";}
+function ensureName(){const v=(nameEl.value||'').trim();if(!v){alert('Please enter a name for the poster.');nameEl.focus();return false;}return true;}
+function wrapText(t,x,y,maxW,lineH){const w=t.split(' ');let l='';for(let n=0;n<w.length;n++){const test=l+w[n]+' ';if(ctx.measureText(test).width>maxW&&n>0){ctx.fillText(l,x,y);l=w[n]+' ';y+=lineH;}else l=test;}ctx.fillText(l,x,y);}
 
 function draw(){
-  ctx.fillStyle = '#efe2c4';
-  ctx.fillRect(0,0,cvs.width,cvs.height);
-
-  if (tpl.complete && tpl.naturalWidth > 0) {
-    ctx.globalAlpha = 0.95;
-    ctx.drawImage(tpl, 0, 0, cvs.width, cvs.height);
-    ctx.globalAlpha = 1;
-  }
-
-  ctx.fillStyle = '#2b1708';
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 98px Georgia, serif';
-  ctx.fillText('WANTED', cvs.width/2, 120);
-
-  const name = (nameEl.value || '').trim();
-  if (name) {
-    ctx.font = 'bold 36px Georgia, serif';
-    ctx.fillText(name.toUpperCase(), cvs.width/2, 170);
-  }
-
-  if (userImg) {
-    const box = { x: cvs.width*0.12, y: cvs.height*0.20, w: cvs.width*0.76, h: cvs.height*0.55 };
-    const ar = userImg.width / userImg.height, arB = box.w / box.h;
-    let w,h;
-    if (ar > arB){ h = box.h; w = ar*h; } else { w = box.w; h = w/ar; }
-    const x = box.x + (box.w - w)/2, y = box.y + (box.h - h)/2;
-    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 6; ctx.strokeRect(box.x-4, box.y-4, box.w+8, box.h+8);
-    ctx.drawImage(userImg, x, y, w, h);
-  }
-
-  const crime = 'Crime: ' + crimes[Math.floor(Math.random()*crimes.length)].toUpperCase();
-  ctx.font = 'bold 32px Georgia, serif';
-  wrapText(crime, cvs.width/2, cvs.height - 150, 620, 38);
-  ctx.font = '20px Georgia, serif';
-  ctx.fillText('Reward: One taco and eternal respect', cvs.width/2, cvs.height - 60);
-
-  dl.href = cvs.toDataURL('image/png'); dl.style.display = 'inline-block';
+ ctx.fillStyle='#efe2c4';ctx.fillRect(0,0,cvs.width,cvs.height);
+ if(tpl.complete&&tpl.naturalWidth>0){ctx.globalAlpha=0.95;ctx.drawImage(tpl,0,0,cvs.width,cvs.height);ctx.globalAlpha=1;}
+ ctx.fillStyle='#2b1708';ctx.textAlign='center';ctx.font='bold 98px Georgia,serif';ctx.fillText('WANTED',cvs.width/2,120);
+ const name=(nameEl.value||'').trim();if(name){ctx.font='bold 36px Georgia,serif';ctx.fillText(name.toUpperCase(),cvs.width/2,170);}
+ const pad=0.016*cvs.width;const box={x:cvs.width*0.12+pad,y:cvs.height*0.20+pad,w:cvs.width*0.76-2*pad,h:cvs.height*0.55-2*pad};
+ ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=6;ctx.strokeRect(box.x-4,box.y-4,box.w+8,box.h+8);
+ if(userImg){const ar=userImg.width/userImg.height,arB=box.w/box.h;let w,h;if(ar>arB){h=box.h;w=ar*h;}else{w=box.w;h=w/ar;}
+ const x=box.x+(box.w-w)/2,y=box.y+(box.h-h)/2;ctx.save();ctx.beginPath();ctx.rect(box.x,box.y,box.w,box.h);ctx.clip();ctx.drawImage(userImg,x,y,w,h);ctx.restore();}
+ const crime='Crime: '+pick(crimes).toUpperCase();const reward='Reward: '+pick(rewards);
+ ctx.font='bold 32px Georgia,serif';wrapText(crime,cvs.width/2,cvs.height-150,620,38);
+ ctx.font='20px Georgia,serif';ctx.fillText(reward,cvs.width/2,cvs.height-60);
+ dl.href=cvs.toDataURL('image/png');dl.style.display='inline-block';
 }
-
-function wrapText(t, x, y, maxW, lineH){
-  const words = t.split(' ');
-  let line = '';
-  for (let n=0; n<words.length; n++){
-    const test = line + words[n] + ' ';
-    if (ctx.measureText(test).width > maxW && n>0){
-      ctx.fillText(line, x, y);
-      line = words[n] + ' ';
-      y += lineH;
-    } else {
-      line = test;
-    }
-  }
-  ctx.fillText(line, x, y);
-}
+tpl.onload=draw;
+fileEl.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{userImg=new Image();userImg.onload=()=>{setPhotoChosen(true);draw();};userImg.src=ev.target.result;};r.readAsDataURL(f);});
+cameraBtn.addEventListener('click',async()=>{if(!navigator.mediaDevices?.getUserMedia){alert('Camera not supported.');return;}try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});video.srcObject=stream;videoWrap.style.display='block';snapBtn.disabled=false;cameraBtn.textContent='Retake with Live Camera';}catch(e){alert('Camera access failed.');}});
+snapBtn.addEventListener('click',()=>{if(!stream)return;const tmp=document.createElement('canvas');tmp.width=video.videoWidth||1280;tmp.height=video.videoHeight||720;tmp.getContext('2d').drawImage(video,0,0);const img=new Image();img.onload=()=>{userImg=img;setPhotoChosen(true);draw();};img.src=tmp.toDataURL('image/png');stream.getTracks().forEach(t=>t.stop());stream=null;videoWrap.style.display='none';snapBtn.disabled=true;cameraBtn.textContent='Retake with Live Camera';});
+makeBtn.addEventListener('click',()=>{if(!ensureName())return;if(!hasPhoto){alert('Please upload or take a photo first.');return;}draw();});
 </script>
 </body>
 </html>
