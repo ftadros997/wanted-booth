@@ -1,0 +1,9 @@
+{
+  "name": "Wanted Poster Booth",
+  "short_name": "WantedBooth",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f6f0e3",
+  "theme_color": "#d7c49e",
+  "icons": []
+}
