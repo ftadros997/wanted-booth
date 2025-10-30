@@ -36,26 +36,27 @@
   </div>
 
   <div class="row">
-    <label for="file" id="fileLabel" class="file-label">📷 Upload Photo</label>
-    <!-- IMPORTANT: no capture attribute so iPhone shows Upload / Take Photo / Browse -->
-    <input id="file" type="file" accept="image/*">
+    <!-- Two explicit choices to avoid iOS forcing camera-only -->
+    <button id="btnUpload" class="secondary">Upload from Library</button>
+    <button id="btnTake"   class="">Take Photo (Picker)</button>
+    <input id="fileLib" type="file" accept="image/*"> <!-- shows Upload/Photo Library -->
+    <input id="fileCam" type="file" accept="image/*" capture="environment"> <!-- opens camera directly -->
     <button id="cameraBtn">Use Live Camera</button>
     <button id="snapBtn" class="secondary" disabled>Snap Photo</button>
   </div>
-  <div class="row hint">If Snap Photo is disabled, tap <b>Use Live Camera</b> to allow access first.</div>
+  <div class="row hint">Upload from Library = choose existing photo. Take Photo (Picker) = camera via file picker. Live Camera = real-time preview with Snap.</div>
   <div id="videoWrap" style="display:none"><video id="video" autoplay playsinline></video></div>
 
   <div class="row">
     <label for="zoom">Zoom:</label>
-    <input id="zoom" type="range" min="0.6" max="1.4" step="0.01" value="1.00">
-    <span id="zoomVal" class="hint">1.00×</span>
+    <input id="zoom" type="range" min="0.6" max="1.4" step="0.01" value="0.90">
+    <span id="zoomVal" class="hint">0.90×</span>
   </div>
 
   <div class="row">
     <button id="makeBtn">Make Poster</button>
     <a id="dl" class="btn" style="display:none" download="wanted-poster.png">Download Poster</a>
   </div>
-  <div class="row hint">Tip: For iPhone live camera, host over HTTPS (GitHub Pages). Upload works anywhere.</div>
 </section>
 
 <section class="card"><canvas id="c" width="768" height="1152" aria-label="Wanted poster preview"></canvas></section>
@@ -64,55 +65,49 @@
 <script>
 const cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
 const tpl=new Image();tpl.src='poster_template.png';
-let userImg=null,stream=null,hasPhoto=false,imageScale=1.0;
 
-const fileEl=document.getElementById('file'),fileLbl=document.getElementById('fileLabel');
-const cameraBtn=document.getElementById('cameraBtn'),snapBtn=document.getElementById('snapBtn');
-const video=document.getElementById('video'),videoWrap=document.getElementById('videoWrap');
-const makeBtn=document.getElementById('makeBtn'),dl=document.getElementById('dl'),nameEl=document.getElementById('name');
-const zoom=document.getElementById('zoom'),zoomVal=document.getElementById('zoomVal');
+let userImg=null;
+let userURL=null; // object URL for cleanup
+let stream=null;
+let imageScale=0.90; // default a bit smaller
+
+const fileLib=document.getElementById('fileLib');
+const fileCam=document.getElementById('fileCam');
+const btnUpload=document.getElementById('btnUpload');
+const btnTake=document.getElementById('btnTake');
+const cameraBtn=document.getElementById('cameraBtn');
+const snapBtn=document.getElementById('snapBtn');
+const video=document.getElementById('video');
+const videoWrap=document.getElementById('videoWrap');
+const makeBtn=document.getElementById('makeBtn');
+const dl=document.getElementById('dl');
+const nameEl=document.getElementById('name');
+const zoom=document.getElementById('zoom');
+const zoomVal=document.getElementById('zoomVal');
 
 const crimes=["Stole all the 3 AM burritos","Refused to share fries","Serial high-fiver","Guilty of excessive dad jokes","Pocketed the last donut","Liberating cake from a tiny box","Hijacked the office stapler","Dance-floor instigator","Coffee-cup thief","Snuck extra napkins"];
 const rewards=["A bag of gold coins","A lifetime supply of tacos","A golden sheriff badge","Free donuts for a week","A mug of strong coffee","A comfy cowboy hat","Two front-row rodeo seats"];
 
 function pick(a){return a[Math.floor(Math.random()*a.length)];}
-function setPhotoChosen(on){hasPhoto=!!on;fileLbl.textContent=on?"📷 Change Photo":"📷 Upload Photo";}
 function ensureName(){const v=(nameEl.value||'').trim();if(!v){alert('Please enter a name for the poster.');nameEl.focus();return false;}return true;}
 function wrapText(t,x,y,maxW,lineH){const w=t.split(' ');let l='';for(let n=0;n<w.length;n++){const test=l+w[n]+' ';if(ctx.measureText(test).width>maxW&&n>0){ctx.fillText(l,x,y);l=w[n]+' ';y+=lineH;}else l=test;}ctx.fillText(l,x,y);}
 
-zoom.addEventListener('input',()=>{imageScale=parseFloat(zoom.value);zoomVal.textContent=imageScale.toFixed(2)+'×';if(userImg)draw();});
+function cleanupURL(){ if(userURL){ URL.revokeObjectURL(userURL); userURL=null; } }
 
-function draw(){
- ctx.fillStyle='#efe2c4';ctx.fillRect(0,0,cvs.width,cvs.height);
- if(tpl.complete&&tpl.naturalWidth>0){ctx.globalAlpha=0.95;ctx.drawImage(tpl,0,0,cvs.width,cvs.height);ctx.globalAlpha=1;}
- ctx.fillStyle='#2b1708';ctx.textAlign='center';ctx.font='bold 98px Georgia,serif';ctx.fillText('WANTED',cvs.width/2,120);
- const name=(nameEl.value||'').trim();if(name){ctx.font='bold 36px Georgia,serif';ctx.fillText(name.toUpperCase(),cvs.width/2,170);}
- const pad=0.02*cvs.width;const box={x:cvs.width*0.12+pad,y:cvs.height*0.21+pad,w:cvs.width*0.76-2*pad,h:cvs.height*0.50-2*pad};
- ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=6;ctx.strokeRect(box.x-4,box.y-4,box.w+8,box.h+8);
- if(userImg){
-   // CONTAIN fit, then user-controlled zoom
-   const scale=Math.min(box.w/userImg.width, box.h/userImg.height)*imageScale;
-   const w=userImg.width*scale, h=userImg.height*scale;
-   const x=box.x+(box.w-w)/2, y=box.y+(box.h-h)/2;
-   ctx.save();ctx.beginPath();ctx.rect(box.x,box.y,box.w,box.h);ctx.clip();ctx.drawImage(userImg,x,y,w,h);ctx.restore();
- }
- const crime='Crime: '+pick(crimes).toUpperCase();
- const reward='Reward: '+pick(rewards);
- ctx.font='bold 30px Georgia,serif';wrapText(crime,cvs.width/2,cvs.height-150,620,36);
- ctx.font='20px Georgia,serif';ctx.fillText(reward,cvs.width/2,cvs.height-60);
- dl.href=cvs.toDataURL('image/png');dl.style.display='inline-block';
+function handleFile(file){
+  if(!file) return;
+  cleanupURL();
+  userURL = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => { userImg = img; draw(); };
+  img.src = userURL;
 }
 
-tpl.onload=draw;
+btnUpload.addEventListener('click',()=> fileLib.click());
+btnTake.addEventListener('click',()=> fileCam.click());
 
-// Upload/file picker (now truly gives Upload / Take Photo / Browse on iPhone)
-fileEl.addEventListener('change',e=>{
-  const f=e.target.files[0]; if(!f) return;
-  setPhotoChosen(true); // mark immediately to avoid race
-  const r=new FileReader();
-  r.onload=ev=>{userImg=new Image();userImg.onload=()=>{draw();};userImg.src=ev.target.result;};
-  r.readAsDataURL(f);
-});
+fileLib.addEventListener('change',e=> handleFile(e.target.files?.[0]));
+fileCam.addEventListener('change',e=> handleFile(e.target.files?.[0]));
 
 // Live camera
 cameraBtn.addEventListener('click',async()=>{
@@ -120,7 +115,7 @@ cameraBtn.addEventListener('click',async()=>{
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
     video.srcObject=stream;
-    document.getElementById('videoWrap').style.display='block';
+    videoWrap.style.display='block';
     snapBtn.disabled=false;
     cameraBtn.textContent='Retake with Live Camera';
   }catch(e){alert('Could not access camera. If on iPhone, open the HTTPS site.');}
@@ -131,21 +126,68 @@ snapBtn.addEventListener('click',()=>{
   const tmp=document.createElement('canvas');
   tmp.width=video.videoWidth||1280; tmp.height=video.videoHeight||720;
   tmp.getContext('2d').drawImage(video,0,0);
-  const img=new Image();
-  img.onload=()=>{userImg=img; setPhotoChosen(true); draw();};
-  img.src=tmp.toDataURL('image/png');
+  tmp.toBlob(b=>{
+    if(!b) return;
+    // emulate a file so we reuse handleFile (and get object URL + draw)
+    const f = new File([b], 'camera.png', {type:'image/png'});
+    handleFile(f);
+  }, 'image/png', 0.92);
+
   // Stop stream and tidy UI
   stream.getTracks().forEach(t=>t.stop()); stream=null;
-  document.getElementById('videoWrap').style.display='none';
+  videoWrap.style.display='none';
   snapBtn.disabled=true;
   cameraBtn.textContent='Retake with Live Camera';
 });
 
+zoom.addEventListener('input',()=>{ imageScale=parseFloat(zoom.value); zoomVal.textContent=imageScale.toFixed(2)+'×'; if(userImg) draw(); });
+
+function draw(){
+  // parchment background
+  ctx.fillStyle='#efe2c4';ctx.fillRect(0,0,cvs.width,cvs.height);
+  if(tpl.complete&&tpl.naturalWidth>0){ctx.globalAlpha=0.95;ctx.drawImage(tpl,0,0,cvs.width,cvs.height);ctx.globalAlpha=1;}
+
+  // title + name
+  ctx.fillStyle='#2b1708';ctx.textAlign='center';
+  ctx.font='bold 98px Georgia,serif';ctx.fillText('WANTED',cvs.width/2,120);
+  const name=(nameEl.value||'').trim();
+  if(name){ ctx.font='bold 36px Georgia,serif'; ctx.fillText(name.toUpperCase(),cvs.width/2,170); }
+
+  // frame
+  const pad=0.02*cvs.width;
+  const box={x:cvs.width*0.12+pad,y:cvs.height*0.21+pad,w:cvs.width*0.76-2*pad,h:cvs.height*0.50-2*pad};
+  ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=6;ctx.strokeRect(box.x-4,box.y-4,box.w+8,box.h+8);
+
+  // image (contain + zoom, fully clipped)
+  if(userImg){
+    const scale = Math.min(box.w/userImg.width, box.h/userImg.height) * imageScale;
+    const w = userImg.width * scale;
+    const h = userImg.height * scale;
+    const x = box.x + (box.w - w)/2;
+    const y = box.y + (box.h - h)/2;
+    ctx.save(); ctx.beginPath(); ctx.rect(box.x,box.y,box.w,box.h); ctx.clip();
+    ctx.drawImage(userImg,x,y,w,h); ctx.restore();
+  }
+
+  // crime + reward
+  const crime='Crime: '+pick(crimes).toUpperCase();
+  const reward='Reward: '+pick(rewards);
+  ctx.font='bold 30px Georgia,serif';wrapText(crime,cvs.width/2,cvs.height-150,620,36);
+  ctx.font='20px Georgia,serif';ctx.fillText(reward,cvs.width/2,cvs.height-60);
+
+  // download ready
+  dl.href=cvs.toDataURL('image/png');
+  dl.style.display='inline-block';
+}
+
+// Make Poster validation
 makeBtn.addEventListener('click',()=>{
   if(!ensureName()) return;
-  if(!hasPhoto){ alert('Please upload or take a photo first.'); return; }
+  if(!userImg){ alert('Please upload or take a photo first.'); return; }
   draw();
 });
+
+tpl.onload=draw;
 </script>
 </body>
 </html>
