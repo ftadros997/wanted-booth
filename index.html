@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Wanted Poster Booth</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#d7c49e">
@@ -26,9 +26,7 @@
 </style>
 </head>
 <body>
-<header><div class="container">
-  <h2 style="margin:0">Wanted Poster Booth</h2>
-</div></header>
+<header><div class="container"><h2 style="margin:0">Wanted Poster Booth</h2></div></header>
 
 <div class="container grid">
 <section class="card">
@@ -43,14 +41,19 @@
   </div>
 
   <div class="row">
-    <!-- Guaranteed upload option (NO capture attr) -->
-    <button id="btnUpload" class="secondary">Upload from Library</button>
-    <input id="fileLib" type="file" accept="image/*,image/heic,video/quicktime">
-    <!-- Live camera (permissioned) -->
+    <!-- Guaranteed upload option (no capture) -->
+    <button id="btnUpload" class="secondary">Upload from Library / Files</button>
+    <input id="fileLib" type="file" accept="image/*">
+    <!-- Optional: direct camera via picker -->
+    <button id="btnTake" class="">Take Photo (Picker)</button>
+    <input id="fileCam" type="file" accept="image/*" capture="environment">
+  </div>
+
+  <div class="row">
+    <!-- Explicit live camera permission first -->
     <button id="btnEnableCam">Enable Live Camera</button>
     <button id="snapBtn" class="secondary" disabled>Snap Photo</button>
   </div>
-  <div class="row hint">Upload from Library = choose existing or take via picker. Enable Live Camera = real-time preview with Snap.</div>
   <div id="videoWrap" style="display:none"><video id="video" autoplay playsinline></video></div>
 
   <div class="row">
@@ -63,9 +66,16 @@
     <button id="makeBtn">Make Poster</button>
     <a id="dl" class="btn" style="display:none" download="wanted-poster.png">Download Poster</a>
   </div>
+
+  <div class="row hint">
+    • On iPhone: for **live camera**, first tap <b>Enable Live Camera</b> and Allow.<br>
+    • **Upload from Library** always shows your photo library & files (not camera-only).
+  </div>
 </section>
 
-<section class="card"><canvas id="c" width="768" height="1152" aria-label="Wanted poster preview"></canvas></section>
+<section class="card">
+  <canvas id="c" width="768" height="1152" aria-label="Wanted poster preview"></canvas>
+</section>
 </div>
 
 <script>
@@ -76,13 +86,16 @@ let userImg=null, userURL=null;
 let stream=null, camGranted=false;
 let imageScale=0.85;
 
-const fileLib=document.getElementById('fileLib');
+const nameEl=document.getElementById('name');
 const btnUpload=document.getElementById('btnUpload');
+const btnTake=document.getElementById('btnTake');
+const fileLib=document.getElementById('fileLib');
+const fileCam=document.getElementById('fileCam');
 const btnEnableCam=document.getElementById('btnEnableCam');
 const snapBtn=document.getElementById('snapBtn');
 const video=document.getElementById('video'), videoWrap=document.getElementById('videoWrap');
-const makeBtn=document.getElementById('makeBtn'), dl=document.getElementById('dl'), nameEl=document.getElementById('name');
 const zoom=document.getElementById('zoom'), zoomVal=document.getElementById('zoomVal');
+const makeBtn=document.getElementById('makeBtn'), dl=document.getElementById('dl');
 const camStatus=document.getElementById('camStatus');
 
 const crimes=["Stole all the 3 AM burritos","Refused to share fries","Serial high-fiver","Guilty of excessive dad jokes","Pocketed the last donut","Liberating cake from a tiny box","Hijacked the office stapler","Dance-floor instigator","Coffee-cup thief","Snuck extra napkins"];
@@ -93,27 +106,31 @@ function ensureName(){const v=(nameEl.value||'').trim();if(!v){alert('Please ent
 function wrapText(t,x,y,maxW,lineH){const w=t.split(' ');let l='';for(let n=0;n<w.length;n++){const test=l+w[n]+' ';if(ctx.measureText(test).width>maxW&&n>0){ctx.fillText(l,x,y);l=w[n]+' ';y+=lineH;}else l=test;}ctx.fillText(l,x,y);}
 function cleanupURL(){ if(userURL){URL.revokeObjectURL(userURL); userURL=null;} }
 
-function setCamStatus(s){ camStatus.textContent='Camera: '+s; }
-
 function handleFile(file){
   if(!file) return;
   cleanupURL();
+  // Use ObjectURL (more reliable on iOS)
   userURL = URL.createObjectURL(file);
   const img=new Image();
   img.onload=()=>{ userImg=img; draw(); };
+  img.onerror=()=>{ alert('Could not load that file. Please try a different photo.'); };
   img.src=userURL;
 }
 
+// Some iOS versions fire 'input' instead of 'change' reliably; listen to both.
 btnUpload.addEventListener('click',()=> fileLib.click());
-fileLib.addEventListener('change',e=>{ handleFile(e.target.files?.[0]); });
+btnTake.addEventListener('click',()=> fileCam.click());
+fileLib.addEventListener('change',e=>handleFile(e.target.files?.[0]));
+fileLib.addEventListener('input', e=>handleFile(e.target.files?.[0]));
+fileCam.addEventListener('change',e=>handleFile(e.target.files?.[0]));
+fileCam.addEventListener('input', e=>handleFile(e.target.files?.[0]));
 
+// Live camera permission first
+function setCamStatus(s){ camStatus.textContent='Camera: '+s; }
 btnEnableCam.addEventListener('click', async ()=>{
-  if(!navigator.mediaDevices?.getUserMedia){
-    alert('Live camera not supported in this browser.'); return;
-  }
+  if(!navigator.mediaDevices?.getUserMedia){ alert('Live camera not supported in this browser.'); return; }
   try{
-    // Request permission first
-    stream = await navigator.mediaDevices.getUserMedia({ video:{facingMode:'user'}, audio:false });
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
     camGranted=true; setCamStatus('granted');
     video.srcObject=stream;
     videoWrap.style.display='block';
@@ -121,23 +138,28 @@ btnEnableCam.addEventListener('click', async ()=>{
     btnEnableCam.textContent='Retake (Live Camera)';
   }catch(e){
     camGranted=false; setCamStatus('denied');
-    alert('Camera access was denied. You can still Upload from Library.');
+    alert('Camera access was denied. You can still use Upload from Library.');
   }
 });
 
-snapBtn.addEventListener('click',()=>{
-  if(!stream){ alert('Enable Live Camera first, then Snap.'); return; }
+function captureFromVideo(){
+  if(!stream) return false;
   const tmp=document.createElement('canvas');
   tmp.width=video.videoWidth||1280; tmp.height=video.videoHeight||720;
   tmp.getContext('2d').drawImage(video,0,0);
   tmp.toBlob(b=>{
     if(!b) return;
     handleFile(new File([b], 'camera.png', {type:'image/png'}));
-  },'image/png',0.92);
-  // Stop stream and tidy
+  }, 'image/png', 0.92);
+  // stop stream after capture for simplicity
   stream.getTracks().forEach(t=>t.stop()); stream=null;
-  videoWrap.style.display='none';
-  snapBtn.disabled=true;
+  videoWrap.style.display='none'; snapBtn.disabled=true;
+  return true;
+}
+
+snapBtn.addEventListener('click',()=>{
+  if(!stream){ alert('Enable Live Camera first, then Snap.'); return; }
+  captureFromVideo();
   btnEnableCam.textContent='Retake (Live Camera)';
 });
 
@@ -148,27 +170,46 @@ zoom.addEventListener('input',()=>{
 });
 
 function draw(){
+  // background + texture
   ctx.fillStyle='#efe2c4';ctx.fillRect(0,0,cvs.width,cvs.height);
   if(tpl.complete&&tpl.naturalWidth>0){ctx.globalAlpha=0.95;ctx.drawImage(tpl,0,0,cvs.width,cvs.height);ctx.globalAlpha=1;}
-  ctx.fillStyle='#2b1708';ctx.textAlign='center';ctx.font='bold 98px Georgia,serif';ctx.fillText('WANTED',cvs.width/2,120);
+  // title + name
+  ctx.fillStyle='#2b1708';ctx.textAlign='center';
+  ctx.font='bold 98px Georgia,serif';ctx.fillText('WANTED',cvs.width/2,120);
   const name=(nameEl.value||'').trim(); if(name){ctx.font='bold 36px Georgia,serif';ctx.fillText(name.toUpperCase(),cvs.width/2,170);}
-  const pad=0.025*cvs.width; const box={x:cvs.width*0.12+pad,y:cvs.height*0.21+pad,w:cvs.width*0.76-2*pad,h:cvs.height*0.48-2*pad};
+  // frame box
+  const pad=0.025*cvs.width;
+  const box={x:cvs.width*0.12+pad,y:cvs.height*0.21+pad,w:cvs.width*0.76-2*pad,h:cvs.height*0.48-2*pad};
   ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=6;ctx.strokeRect(box.x-4,box.y-4,box.w+8,box.h+8);
+  // image (contain + zoom + clip)
   if(userImg){
     const scale=Math.min(box.w/userImg.width, box.h/userImg.height)*imageScale;
     const w=userImg.width*scale, h=userImg.height*scale;
     const x=box.x+(box.w-w)/2, y=box.y+(box.h-h)/2;
-    ctx.save();ctx.beginPath();ctx.rect(box.x,box.y,box.w,box.h);ctx.clip();ctx.drawImage(userImg,x,y,w,h);ctx.restore();
+    ctx.save();ctx.beginPath();ctx.rect(box.x,box.y,box.w,box.h);ctx.clip();
+    ctx.drawImage(userImg,x,y,w,h);ctx.restore();
   }
-  const crime='Crime: '+pick(crimes).toUpperCase(); const reward='Reward: '+pick(rewards);
+  // crime + reward
+  const crime='Crime: '+pick(crimes).toUpperCase();
+  const reward='Reward: '+pick(rewards);
   ctx.font='bold 30px Georgia,serif';wrapText(crime,cvs.width/2,cvs.height-150,620,36);
   ctx.font='20px Georgia,serif';ctx.fillText(reward,cvs.width/2,cvs.height-60);
+  // download ready
   dl.href=cvs.toDataURL('image/png'); dl.style.display='inline-block';
 }
 
-document.getElementById('makeBtn').addEventListener('click',()=>{
-  if(!ensureName()) return;
-  if(!userImg){ alert('Please upload from library or take a photo first.'); return; }
+// Make Poster now auto-captures if live camera view is active
+makeBtn.addEventListener('click',()=>{
+  if(!(nameEl.value||'').trim()){ alert('Please enter a name for the poster.'); nameEl.focus(); return; }
+  if(!userImg){
+    if(stream){
+      // Auto-capture a frame so user doesn't need to press Snap
+      captureFromVideo();
+      return; // draw() will be called by handleFile once the image is ready
+    } else {
+      alert('Please upload from library or take a photo first.'); return;
+    }
+  }
   draw();
 });
 
