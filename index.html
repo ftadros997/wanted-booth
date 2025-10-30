@@ -4,8 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Wanted Poster Booth</title>
-<link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#d7c49e">
+<meta http-equiv="Cache-Control" content="no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <style>
   body{margin:0;font-family: ui-sans-serif, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial;background:#f6f0e3;color:#222;}
   header{padding:16px;background:#f6f0e3;border-bottom:1px solid #decfae;}
@@ -18,12 +20,26 @@
   button.secondary{background:#fff;color:#222;border:1px solid #aaa;}
   input[type=text]{padding:8px 10px;border-radius:8px;border:1px solid #bbb;width:100%;max-width:300px;}
   input[type=file]{display:none}
-  .file-label{display:inline-block;padding:10px 14px;border-radius:8px;border:1px dashed #a97c4a;background:#f7f1e3;cursor:pointer;}
   .row{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0;align-items:center}
   .hint{font-size:.9rem;color:#6b5a46}
   .status{font-size:.85rem;padding:6px 10px;border-radius:999px;background:#efe2c4;border:1px solid #decfae;color:#5b4632}
   .ok{color:#0a6e2f}
 </style>
+<script>
+// 🚫 Kill any old Service Workers + caches so you don't see stale UI
+(async () => {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const r of regs) await r.unregister();
+    }
+    if (window.caches && caches.keys) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+  } catch(e) {}
+})();
+</script>
 </head>
 <body>
 <header><div class="container"><h2 style="margin:0">Wanted Poster Booth</h2></div></header>
@@ -41,12 +57,9 @@
   </div>
 
   <div class="row">
-    <!-- Guaranteed upload option (no capture) -->
-    <button id="btnUpload" class="secondary">Upload from Library / Files</button>
-    <input id="fileLib" type="file" accept="image/*,image/heic">
-    <!-- Optional direct camera via picker -->
-    <button id="btnTake">Take Photo (Picker)</button>
-    <input id="fileCam" type="file" accept="image/*,image/heic" capture="environment">
+    <!-- Single input so iOS shows Photo Library / Take Photo / Browse in one sheet -->
+    <button id="btnPick" class="secondary">Upload or Take Photo</button>
+    <input id="filePick" type="file" accept="image/*">
   </div>
 
   <div class="row">
@@ -61,8 +74,7 @@
   </div>
 
   <div class="row hint">
-    • Use <b>Upload from Library / Files</b> or <b>Take Photo (Picker)</b>.<br>
-    • After selecting or taking a photo, the poster is generated automatically.
+    • Tap <b>Upload or Take Photo</b>, then <b>Use Photo</b> — the poster renders automatically.
   </div>
 </section>
 
@@ -72,7 +84,7 @@
 </div>
 
 <script>
-/* Safari toBlob polyfill (not strictly needed anymore but harmless) */
+/* Safari toBlob polyfill */
 if(!HTMLCanvasElement.prototype.toBlob){
   HTMLCanvasElement.prototype.toBlob=function(cb,type,quality){
     const dataURL=this.toDataURL(type,quality);
@@ -83,17 +95,15 @@ if(!HTMLCanvasElement.prototype.toBlob){
 }
 
 const cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
-const tpl=new Image();tpl.src='poster_template.png';
+const tpl=new Image();tpl.src='poster_template.png?cb=v10';
 
 let userImg=null, userURL=null;
 let imageScale=0.85;
-let lastPicker='';
+let pickerOpened=false;
 
 const nameEl=document.getElementById('name');
-const btnUpload=document.getElementById('btnUpload');
-const btnTake=document.getElementById('btnTake');
-const fileLib=document.getElementById('fileLib');
-const fileCam=document.getElementById('fileCam');
+const btnPick=document.getElementById('btnPick');
+const filePick=document.getElementById('filePick');
 const zoom=document.getElementById('zoom'), zoomVal=document.getElementById('zoomVal');
 const makeBtn=document.getElementById('makeBtn'), dl=document.getElementById('dl');
 const photoStatus=document.getElementById('photoStatus');
@@ -117,23 +127,15 @@ function handleFile(file){
   img.src=userURL;
 }
 
-/* Picker buttons — reset value so selecting the same photo fires again */
-btnUpload.addEventListener('click',()=>{ fileLib.value=''; lastPicker='lib'; fileLib.click(); });
-btnTake.addEventListener('click',()=>{ fileCam.value=''; lastPicker='cam'; fileCam.click(); });
+btnPick.addEventListener('click',()=>{ filePick.value=''; pickerOpened=true; filePick.click(); });
+filePick.addEventListener('change',e=>handleFile(e.target.files?.[0]));
+filePick.addEventListener('input', e=>handleFile(e.target.files?.[0]));
 
-/* iOS can fire 'input' OR 'change'; listen to both */
-function wirePicker(input){ input.addEventListener('change',e=>handleFile(e.target.files?.[0])); input.addEventListener('input',e=>handleFile(e.target.files?.[0])); }
-wirePicker(fileLib); wirePicker(fileCam);
+// Fallback: if iOS drops events, harvest on focus/visibility
+function tryHarvest(){ const i=filePick; if(i && i.files && i.files.length>0){ handleFile(i.files[0]); } }
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && pickerOpened) setTimeout(tryHarvest,150); });
+window.addEventListener('focus', ()=>{ if(pickerOpened) setTimeout(tryHarvest,150); });
 
-/* Fallback after returning from picker: harvest selected file if events were missed */
-function tryHarvestPicker(){
-  const i = lastPicker==='cam' ? fileCam : fileLib;
-  if(i && i.files && i.files.length>0){ handleFile(i.files[0]); }
-}
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeout(tryHarvestPicker, 150); });
-window.addEventListener('focus', ()=> setTimeout(tryHarvestPicker, 150));
-
-/* Drawing */
 function draw(){
   ctx.fillStyle='#efe2c4';ctx.fillRect(0,0,cvs.width,cvs.height);
   if(tpl.complete&&tpl.naturalWidth>0){ctx.globalAlpha=0.95;ctx.drawImage(tpl,0,0,cvs.width,cvs.height);ctx.globalAlpha=1;}
@@ -162,11 +164,10 @@ zoom.addEventListener('input',()=>{
   if(userImg) draw();
 });
 
-/* Make Poster: draws current selection; if none, gently nudge */
 makeBtn.addEventListener('click',()=>{
   const name=(nameEl.value||'').trim();
   if(!name){ alert('Please enter a name for the poster.'); nameEl.focus(); return; }
-  if(!userImg){ alert('Please upload from library/files or take a photo first.'); return; }
+  if(!userImg){ alert('Please upload or take a photo first.'); return; }
   draw();
 });
 
