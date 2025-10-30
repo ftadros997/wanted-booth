@@ -1,2 +1,2 @@
-self.addEventListener('install',e=>{e.waitUntil(caches.open('wb-v3').then(c=>c.addAll(['./','./index.html','./poster_template.png','./manifest.webmanifest'])))});
+self.addEventListener('install',e=>{e.waitUntil(caches.open('wb-v4').then(c=>c.addAll(['./','./index.html','./poster_template.png','./manifest.webmanifest'])))});
 self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))});
