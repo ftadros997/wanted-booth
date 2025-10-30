@@ -23,6 +23,7 @@
   .row{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0;align-items:center}
   .hint{font-size:.9rem;color:#6b5a46}
   .status{font-size:.85rem;padding:6px 10px;border-radius:999px;background:#efe2c4;border:1px solid #decfae;color:#5b4632}
+  .ok{color:#0a6e2f}
 </style>
 </head>
 <body>
@@ -38,15 +39,16 @@
 
   <div class="row">
     <span class="status" id="camStatus">Camera: not requested</span>
+    <span class="status ok" id="photoStatus" style="display:none">Photo loaded ✓</span>
   </div>
 
   <div class="row">
     <!-- Guaranteed upload option (no capture) -->
     <button id="btnUpload" class="secondary">Upload from Library / Files</button>
-    <input id="fileLib" type="file" accept="image/*">
-    <!-- Optional: direct camera via picker -->
+    <input id="fileLib" type="file" accept="image/*,image/heic">
+    <!-- Optional camera via picker (can still fall back) -->
     <button id="btnTake" class="">Take Photo (Picker)</button>
-    <input id="fileCam" type="file" accept="image/*" capture="environment">
+    <input id="fileCam" type="file" accept="image/*,image/heic" capture="environment">
   </div>
 
   <div class="row">
@@ -68,8 +70,8 @@
   </div>
 
   <div class="row hint">
-    • On iPhone: for **live camera**, first tap <b>Enable Live Camera</b> and Allow.<br>
-    • **Upload from Library** always shows your photo library & files (not camera-only).
+    • iPhone: for live preview, tap <b>Enable Live Camera</b> and Allow.<br>
+    • If you use the picker, tapping <b>Use Photo</b> should immediately load and draw the poster.
   </div>
 </section>
 
@@ -79,12 +81,23 @@
 </div>
 
 <script>
+/* Safari toBlob polyfill */
+if(!HTMLCanvasElement.prototype.toBlob){
+  HTMLCanvasElement.prototype.toBlob=function(cb,type,quality){
+    const dataURL=this.toDataURL(type,quality);
+    const bin=atob(dataURL.split(',')[1]); const len=bin.length;
+    const arr=new Uint8Array(len); for(let i=0;i<len;i++) arr[i]=bin.charCodeAt(i);
+    cb(new Blob([arr],{type:type||'image/png'}));
+  };
+}
+
 const cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
 const tpl=new Image();tpl.src='poster_template.png';
 
 let userImg=null, userURL=null;
-let stream=null, camGranted=false;
+let stream=null;
 let imageScale=0.85;
+let lastPicker=''; // 'lib' or 'cam' for visibilitychange fallback
 
 const nameEl=document.getElementById('name');
 const btnUpload=document.getElementById('btnUpload');
@@ -97,6 +110,7 @@ const video=document.getElementById('video'), videoWrap=document.getElementById(
 const zoom=document.getElementById('zoom'), zoomVal=document.getElementById('zoomVal');
 const makeBtn=document.getElementById('makeBtn'), dl=document.getElementById('dl');
 const camStatus=document.getElementById('camStatus');
+const photoStatus=document.getElementById('photoStatus');
 
 const crimes=["Stole all the 3 AM burritos","Refused to share fries","Serial high-fiver","Guilty of excessive dad jokes","Pocketed the last donut","Liberating cake from a tiny box","Hijacked the office stapler","Dance-floor instigator","Coffee-cup thief","Snuck extra napkins"];
 const rewards=["A bag of gold coins","A lifetime supply of tacos","A golden sheriff badge","Free donuts for a week","A mug of strong coffee","A comfy cowboy hat","Two front-row rodeo seats"];
@@ -105,61 +119,63 @@ function pick(a){return a[Math.floor(Math.random()*a.length)];}
 function ensureName(){const v=(nameEl.value||'').trim();if(!v){alert('Please enter a name for the poster.');nameEl.focus();return false;}return true;}
 function wrapText(t,x,y,maxW,lineH){const w=t.split(' ');let l='';for(let n=0;n<w.length;n++){const test=l+w[n]+' ';if(ctx.measureText(test).width>maxW&&n>0){ctx.fillText(l,x,y);l=w[n]+' ';y+=lineH;}else l=test;}ctx.fillText(l,x,y);}
 function cleanupURL(){ if(userURL){URL.revokeObjectURL(userURL); userURL=null;} }
+function setCamStatus(s){ camStatus.textContent='Camera: '+s; }
+function showPhotoLoaded(){ photoStatus.style.display='inline-block'; setTimeout(()=>photoStatus.style.display='none', 2500); }
 
 function handleFile(file){
   if(!file) return;
   cleanupURL();
-  // Use ObjectURL (more reliable on iOS)
   userURL = URL.createObjectURL(file);
   const img=new Image();
-  img.onload=()=>{ userImg=img; draw(); };
+  img.onload=()=>{ userImg=img; draw(); showPhotoLoaded(); window.scrollTo({top:document.body.scrollHeight, behavior:'smooth'}); };
   img.onerror=()=>{ alert('Could not load that file. Please try a different photo.'); };
   img.src=userURL;
 }
 
-// Some iOS versions fire 'input' instead of 'change' reliably; listen to both.
-btnUpload.addEventListener('click',()=> fileLib.click());
-btnTake.addEventListener('click',()=> fileCam.click());
-fileLib.addEventListener('change',e=>handleFile(e.target.files?.[0]));
-fileLib.addEventListener('input', e=>handleFile(e.target.files?.[0]));
-fileCam.addEventListener('change',e=>handleFile(e.target.files?.[0]));
-fileCam.addEventListener('input', e=>handleFile(e.target.files?.[0]));
+/* Picker buttons — reset value to ensure re-select works, set lastPicker for fallback */
+btnUpload.addEventListener('click',()=>{ fileLib.value=''; lastPicker='lib'; fileLib.click(); });
+btnTake.addEventListener('click',()=>{ fileCam.value=''; lastPicker='cam'; fileCam.click(); });
 
-// Live camera permission first
-function setCamStatus(s){ camStatus.textContent='Camera: '+s; }
+/* Some iOS builds only fire input OR change. Listen to both. */
+function wirePicker(input){ input.addEventListener('change',e=>handleFile(e.target.files?.[0])); input.addEventListener('input',e=>handleFile(e.target.files?.[0])); }
+wirePicker(fileLib); wirePicker(fileCam);
+
+/* Fallback: after returning from picker, iOS sometimes misses events. Check on visibility change/focus. */
+function tryHarvestPicker(){
+  const i = lastPicker==='cam' ? fileCam : fileLib;
+  if(i && i.files && i.files.length>0){ handleFile(i.files[0]); }
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeout(tryHarvestPicker, 150); });
+window.addEventListener('focus', ()=> setTimeout(tryHarvestPicker, 150));
+
+/* Live camera permission first */
 btnEnableCam.addEventListener('click', async ()=>{
   if(!navigator.mediaDevices?.getUserMedia){ alert('Live camera not supported in this browser.'); return; }
   try{
     stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
-    camGranted=true; setCamStatus('granted');
+    setCamStatus('granted');
     video.srcObject=stream;
     videoWrap.style.display='block';
     snapBtn.disabled=false;
     btnEnableCam.textContent='Retake (Live Camera)';
   }catch(e){
-    camGranted=false; setCamStatus('denied');
-    alert('Camera access was denied. You can still use Upload from Library.');
+    setCamStatus('denied');
+    alert('Camera access was denied. You can still use Upload from Library / Files.');
   }
 });
 
-function captureFromVideo(){
-  if(!stream) return false;
+snapBtn.addEventListener('click',()=>{
+  if(!stream){ alert('Enable Live Camera first, then Snap.'); return; }
   const tmp=document.createElement('canvas');
   tmp.width=video.videoWidth||1280; tmp.height=video.videoHeight||720;
   tmp.getContext('2d').drawImage(video,0,0);
   tmp.toBlob(b=>{
     if(!b) return;
-    handleFile(new File([b], 'camera.png', {type:'image/png'}));
-  }, 'image/png', 0.92);
-  // stop stream after capture for simplicity
+    handleFile(new File([b],'camera.png',{type:'image/png'}));
+  },'image/png',0.92);
+  // stop stream
   stream.getTracks().forEach(t=>t.stop()); stream=null;
   videoWrap.style.display='none'; snapBtn.disabled=true;
-  return true;
-}
-
-snapBtn.addEventListener('click',()=>{
-  if(!stream){ alert('Enable Live Camera first, then Snap.'); return; }
-  captureFromVideo();
   btnEnableCam.textContent='Retake (Live Camera)';
 });
 
@@ -170,18 +186,18 @@ zoom.addEventListener('input',()=>{
 });
 
 function draw(){
-  // background + texture
+  // base + texture
   ctx.fillStyle='#efe2c4';ctx.fillRect(0,0,cvs.width,cvs.height);
   if(tpl.complete&&tpl.naturalWidth>0){ctx.globalAlpha=0.95;ctx.drawImage(tpl,0,0,cvs.width,cvs.height);ctx.globalAlpha=1;}
   // title + name
   ctx.fillStyle='#2b1708';ctx.textAlign='center';
   ctx.font='bold 98px Georgia,serif';ctx.fillText('WANTED',cvs.width/2,120);
   const name=(nameEl.value||'').trim(); if(name){ctx.font='bold 36px Georgia,serif';ctx.fillText(name.toUpperCase(),cvs.width/2,170);}
-  // frame box
+  // frame
   const pad=0.025*cvs.width;
   const box={x:cvs.width*0.12+pad,y:cvs.height*0.21+pad,w:cvs.width*0.76-2*pad,h:cvs.height*0.48-2*pad};
   ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=6;ctx.strokeRect(box.x-4,box.y-4,box.w+8,box.h+8);
-  // image (contain + zoom + clip)
+  // image
   if(userImg){
     const scale=Math.min(box.w/userImg.width, box.h/userImg.height)*imageScale;
     const w=userImg.width*scale, h=userImg.height*scale;
@@ -189,26 +205,37 @@ function draw(){
     ctx.save();ctx.beginPath();ctx.rect(box.x,box.y,box.w,box.h);ctx.clip();
     ctx.drawImage(userImg,x,y,w,h);ctx.restore();
   }
-  // crime + reward
+  // text
   const crime='Crime: '+pick(crimes).toUpperCase();
   const reward='Reward: '+pick(rewards);
   ctx.font='bold 30px Georgia,serif';wrapText(crime,cvs.width/2,cvs.height-150,620,36);
   ctx.font='20px Georgia,serif';ctx.fillText(reward,cvs.width/2,cvs.height-60);
-  // download ready
+  // download
   dl.href=cvs.toDataURL('image/png'); dl.style.display='inline-block';
 }
 
-// Make Poster now auto-captures if live camera view is active
+// Make Poster: if live camera open, auto-capture; otherwise require an image
 makeBtn.addEventListener('click',()=>{
-  if(!(nameEl.value||'').trim()){ alert('Please enter a name for the poster.'); nameEl.focus(); return; }
+  const name=(nameEl.value||'').trim();
+  if(!name){ alert('Please enter a name for the poster.'); nameEl.focus(); return; }
   if(!userImg){
     if(stream){
-      // Auto-capture a frame so user doesn't need to press Snap
-      captureFromVideo();
-      return; // draw() will be called by handleFile once the image is ready
-    } else {
-      alert('Please upload from library or take a photo first.'); return;
+      // auto-capture a frame so user doesn’t need to press Snap
+      const tmp=document.createElement('canvas');
+      tmp.width=video.videoWidth||1280; tmp.height=video.videoHeight||720;
+      tmp.getContext('2d').drawImage(video,0,0);
+      tmp.toBlob(b=>{
+        if(!b){ alert('Could not capture from camera.'); return; }
+        handleFile(new File([b],'camera.png',{type:'image/png'}));
+      },'image/png',0.92);
+      // stop stream
+      stream.getTracks().forEach(t=>t.stop()); stream=null;
+      videoWrap.style.display='none'; snapBtn.disabled=true;
+      btnEnableCam.textContent='Retake (Live Camera)';
+      return;
     }
+    alert('Please upload from library/files or take a photo first.');
+    return;
   }
   draw();
 });
